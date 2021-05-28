@@ -1,0 +1,11 @@
+const int cap = 34;
+const int en_cap = 5;
+const int res = 35;
+const int en_res = 2;
+
+float temp=0;
+float res_datchik=0;
+
+void setup() {
+  
+  Serial.begin(115200);
