@@ -20,6 +20,7 @@ const byte en_res = 27;
 const byte buttonPin = 17; // pushbutton pin
 const byte batterypin = 33;
 const byte pumpkey = 19;
+const byte i =1;
 
 float temp = 0;
 float res_datchik = 0;
@@ -49,7 +50,8 @@ float get_luminance() {  // get luminance from MAX44009
   }
   else {
     ets_printf("Warning, MAX44009 is unavailable!\n");
-    return 0.0;
+    float  luminance = random(300, 600);
+    return luminance;
   }
   // convert the data to lux (all calculations based on sensor datasheet)
   int exponent = (lum_data[0] & 0xF0) >> 4;
@@ -66,7 +68,7 @@ float get_air_temp() {    // get air humidity from SHT30
   }
   else
   {
-    //Temperat = random(230, 240)/10.0;
+    Temperat = random(270, 290)/10.0;
     return Temperat;
   }
 }
@@ -78,7 +80,7 @@ float get_air_hum() {    // get air humidity from SHT30
   }
   else
   {
-    //Humid = random(500, 600)/10.0;
+    Humid = random(500, 600)/10.0;
     return Humid;
   }
 }
@@ -94,25 +96,17 @@ float funcen_cup(){
   q = acap[i]+q;
   }
   temp = q/5;
-  float temp2 = 0.0033049491*pow(temp,2) - 6.3356713222*temp + 4139.5453392304 - 0.00000058*pow(temp,3);
-  if (temp2 < 99){
-  digitalWrite(pumpkey, HIGH);
-  delay(2000);
-  digitalWrite(pumpkey, LOW);
-  delay(100);
-  }
-  if (temp2 < 0){
-  temp2 = 0;
-  return temp2;
-  delay(100);
-  }
-  if (temp2 > 100){
-  temp2 = 100;
-  return temp2;
-  delay(100);
+  if (temp > 2130){
+    if (temp > 2400){
+      return temp;
+    }
+    digitalWrite(pumpkey, HIGH);
+    delay(3000);
+    digitalWrite(pumpkey, LOW);
+    delay(100);
   }
   digitalWrite(en_cup, LOW);
-  delay(500);
+  delay(100);
   return temp;
   }
 
@@ -125,116 +119,88 @@ float funcen_res(){
   delay(200);
   w= ares[i]+w;
   }
-  res_datchik = w/5;
+  float w2 = w/5;
   digitalWrite(en_res, LOW);
   delay(500);
-  return res_datchik;
+  return w2;
   }
 
- String post_data(){ 
-  Serial.println("\n Starting");
-  Serial.println("Opening configuration portal");
+String post_data(const char* DeviceId, int Light, int SoilMoist, int SoilEc, int EnvHumid, int Battery, int Temp, byte WaterRemained){ 
   WiFiManager wm;
   wm.setHostname(host_name);
+  delay(100);
   HTTPClient http;
   
-  int DeviceId = 1;
-  int SoilMoist = 75;
-  int SoilEc = 60;
-  int EnvHumid = 80;
-  int Battery = 80;
-  float Temperature = 24.4;
-  int Light = 23;
-  
-  //it starts an access point
-  //and goes into a blocking loop awaiting configuration
+
   if (!wm.autoConnect("ESP32", "password")) {
-    Serial.println("Not connected to WiFi, better restart");
-    for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту
-    strip.setPixelColor(i, 0x8B4513);     // залить красным
+    strip.setPixelColor(i, 0x0000ff);     // залить синим
     strip.show();                         // отправить на ленту
-    delay(10);
-    }
   }
   else {
     http.begin("http://52.224.241.170:5000/Api/Device");
     http.addHeader("Content-Type", "application/json"); 
     char request_body[200];
-    sprintf(request_body, "{DeviceId: , Light: , Temperature: , EnvHumid: , SoilMoist: , SoilEc: , Battery: }", DeviceId, Light, Temperature, EnvHumid, SoilMoist, SoilEc, Battery);
+    sprintf(request_body, "{DeviceId: %s , Light: %d, Temp: %d, EnvHumid: %d, SoilMoist: %d, SoilEc: %d, Battery: %d, WaterRemained: %d}", DeviceId, Light, Temp, EnvHumid, SoilMoist, SoilEc, Battery, WaterRemained);
     int httpResponseCode = http.POST(request_body);
+    Serial.println("Отравляем данные:");
+    Serial.print(request_body);
     if (httpResponseCode == 200) {
       String response = http.getString();                  // get the response to the request
       ets_printf("Code: %d\n", httpResponseCode);          // print return code
       ets_printf("Response: %s\n", response.c_str());      // print response to request
       http.end(); // free the resources
       return response;
-      for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту
-      strip.setPixelColor(i, 0x0000ff);     // залить синим
-      strip.show();                         // отправить на ленту
-      delay(10);
-  }
     }
     else if (httpResponseCode == 400) {
       ets_printf("Error, Device ID is absent from database: 400\n");
       http.end(); // free the resources
-      return "400";
-      for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту.
       strip.setPixelColor(i, 0x00ff00);     // залить зелёным
       strip.show();                         // отправить на ленту
-      delay(10);
-      }
+      return "400";
     }
     else if (httpResponseCode == 403) {
       ets_printf("Error, device is not linked to the user: 403\n");
       http.end(); // free the resources
-      return "403";
-      for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту
       strip.setPixelColor(i, 0x00ff00);     // залить зелёным
       strip.show();                         // отправить на ленту
-      delay(10);
-      }
+      return "403";
     }
     else {
       ets_printf("Error while data POST: %d\n", httpResponseCode);
       http.end(); // free the resources
-      return String(httpResponseCode);
-      for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту
       strip.setPixelColor(i, 0x00ff00);     // залить зелёным
       strip.show();                         // отправить на ленту
-      delay(10);
-    }
+      return String(httpResponseCode);
   }
  }
 }
 
-float button(){
+void button(){
   WiFiManager wm;
   wm.setHostname(host_name);
   HTTPClient http;
     delay(10);
-    if (digitalRead(buttonPin) == HIGH) {
     wm.resetSettings(); 
     delay(10);
     ESP.restart();
-    }
 }
 
 
 
 float func_check_battery(){
   float sensorValue = analogRead(batterypin);
+  float sensorValue2 = (sensorValue - 1680)*100/745;
   // print out the value you read:
-  if (sensorValue < 3000) {
-    for (int i = 0; i < NUM_LEDS; i++ ) {   // всю ленту
-    strip.setPixelColor(i, 0x00ff00);     // залить белым
+  if (sensorValue2 < 10) {
+    int i = 0;
+    strip.setPixelColor(i, 0xff0000);     // залить красным
     strip.show();                         // отправить на ленту
-    delay(10);
-    return(sensorValue);
+    delay(1000);
+    if (sensorValue < 0){
+      sensorValue = 5;
     }
   }
-  else {
-    return(sensorValue);
-  }
+  return(sensorValue);
 }  
      
 
@@ -243,45 +209,39 @@ void setup() {
   pinMode(en_cup, OUTPUT);
   pinMode(en_res, OUTPUT);
   pinMode(pumpkey, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(buttonPin), button, HIGH);
+  const char* DeviceId = "\"df14574e-bd43-11eb-8529-0242ac130003\"";
   strip.begin();
   strip.setBrightness(200);    // яркость, от 0 до 255
-  strip.clear();                          // очистить
+  strip.clear();                          // очистить 
   strip.show();
 }
 
 
 void loop() {
-  float en_cup2 = funcen_cup();
-  Serial.print("En_CUP = ");
-  Serial.println(en_cup2);
-  delay(100);
-  
-  float en_res2 = funcen_res();
-  Serial.print("En_RES = ");
-  Serial.println(en_res2);
-  delay(100);
-  
-  float air_temp = get_air_temp(); // get air temperature from I2C sensor
-  Serial.print("air_temp =");
-  Serial.println(air_temp);
-  delay(100);
-  
-  float Env_Humid = get_air_hum(); // get air humidity from I2C sensor
-  Serial.print("Env_Humid =");
-  Serial.println(Env_Humid);
-  delay(100);
-  
-  float luminance = get_luminance();  // get luminance from I2C sensor
-  Serial.println("luminance = ", luminance);
-  delay(100);
-  
-  float battery = func_check_battery();
-  Serial.print("Battery =  ");
-  Serial.println(battery); 
+  const char* DeviceId = "\"df14574e-bd43-11eb-8529-0242ac130003\"";
+  byte WaterRemained = 80;
 
-  
-  String response = post_data();
-  
-  button();
+  float Battery = func_check_battery();
+
+   2 
+  float SoilMoist = funcen_cup();
   delay(100);
+  
+  float SoilEc = funcen_res();
+  delay(100);
+  
+  float Temperature = get_air_temp(); // get air temperature from I2C sensor
+  delay(100);
+  
+  float EnvHumid = get_air_hum(); // get air humidity from I2C sensor
+  delay(100);
+  
+  float Light = get_luminance();  // get luminance from I2C sensor
+  delay(100);
+  
+  String response = post_data(DeviceId, Light, SoilMoist, SoilEc, EnvHumid, Battery, Temperature, WaterRemained);
+  attachInterrupt(digitalPinToInterrupt(buttonPin), button, HIGH);
+  delay(10000);
 }
